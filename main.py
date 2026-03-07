@@ -23,10 +23,11 @@ class AnsibleInteractive:
     _SELECTED_PLAYBOOK: Playbook 
 
     def __init__(self):
-        self.DIR = input("Enter path to the playbooks directory (default: .): ").strip() or ""
-        if not os.path.exists(self.DIR):
-            raise ValueError(f"The playbooks directory '{self.DIR}' was not found.")
-        os.chdir(self.DIR)
+        dir_path = input("Enter path to the playbooks directory (default: .): ").strip()
+        if dir_path:
+            if not os.path.exists(dir_path):
+                raise ValueError(f"The directory '{dir_path}' was not found.")
+            os.chdir(dir_path)
 
     def _set_vault_password_file(self):
         if not os.path.exists(self._VAULT_PASSWORD_FILE):
