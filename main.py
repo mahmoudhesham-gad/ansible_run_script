@@ -22,6 +22,12 @@ class AnsibleInteractive:
     _OPTIONS: dict = {}
     _SELECTED_PLAYBOOK: Playbook 
 
+    def __init__(self):
+        self.DIR = input("Enter path to the playbooks directory (default: .): ").strip() or ""
+        if not os.path.exists(self.DIR):
+            raise ValueError(f"The playbooks directory '{self.DIR}' was not found.")
+        os.chdir(self.DIR)
+
     def _set_vault_password_file(self):
         if not os.path.exists(self._VAULT_PASSWORD_FILE):
             print(f"\nWarning: The default vault password file '{self._VAULT_PASSWORD_FILE}' was not found.")
@@ -31,6 +37,7 @@ class AnsibleInteractive:
         else:
             print(f"Using default vault password file '{self._VAULT_PASSWORD_FILE}'.")
         self._VAULT_PASSWORD_FILE = vault_password_file
+
 
     def _set_hosts_file(self):
         if not os.path.exists(self._HOSTS_FILE):
@@ -53,6 +60,8 @@ class AnsibleInteractive:
             raise ValueError("Invalid selection. Please choose a valid playbook number.")
     
     def _set_options(self):
+        if not self._SELECTED_PLAYBOOK:
+            raise ValueError("No playbook selected")
         self._OPTIONS = self._SELECTED_PLAYBOOK.get_options()
 
     def menu(self) -> None:
