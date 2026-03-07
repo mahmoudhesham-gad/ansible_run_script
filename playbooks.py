@@ -22,10 +22,14 @@ class BackendPlaybook(Playbook):
         }
 
     def get_extra_vars(self, options: dict) -> list[str]:
-        return [
-            "-e", f"run_migrations={'true' if options.get('run_migrations') else 'false'}",
-            "-e", f"collectstatic={'true' if options.get('collectstatic') else 'false'}",
-        ]
+        # Passing extra-vars as a JSON string ensures Ansible parses the values as actual booleans, 
+        # avoiding the "Conditional result was derived from value of type 'str'..." error.
+        import json
+        extra_vars = {
+            "run_migrations": bool(options.get('run_migrations')),
+            "collectstatic": bool(options.get('collectstatic')),
+        }
+        return ["-e", json.dumps(extra_vars)]
 
 class BackendProdPlaybook(BackendPlaybook):
     name = "Backend Production Deployment"

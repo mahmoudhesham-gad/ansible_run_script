@@ -31,7 +31,7 @@ wheels = [
 ]
 
 [[package]]
-name = "ansible-deploy"
+name = "ansible-run-script"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
