@@ -12,3 +12,7 @@ wheels/
 .env 
 
 playbooks/
+
+.ansible_password
+
+*/secrets/

@@ -10,6 +10,7 @@ This repository contains a Python-based interactive wrapper to easily and consis
 The main entrypoint. It provides a terminal-based interactive UI for running `ansible-playbook`. 
 
 **Key Features:**
+*   **Playbook Directory Selection**: Prompts you for the directory containing your project's playbooks before execution, allowing flexibility in your project layout.
 *   **Playbook Selection**: Displays a clear menu of available deploy targets (Frontend/Backend, Prod/Staging).
 *   **Automatic Runner Detection**: Looks for the `ansible-playbook` command locally, and gracefully falls back to `uv run ansible-playbook` if Ansible is managed within `uv`.
 *   **Vault Password Auto-detection**: Automatically looks for a `.ansible_password` file. If missing (and required by the selected playbook), it prompts you to provide a custom file path.
@@ -50,6 +51,8 @@ uv run main.py
 If you want to add a fresh playbook to the menu, add it to `playbooks.py`:
 
 ```python
+import json
+
 class DatabasePlaybook(Playbook):
     name = "Database Initialization"
     file = "db_init.yml"
@@ -60,7 +63,11 @@ class DatabasePlaybook(Playbook):
         return {"reset_db": reset_db}
 
     def get_extra_vars(self, options: dict) -> list[str]:
-        return ["-e", f"reset_db={'true' if options.get('reset_db') else 'false'}"]
+        # Passing extra-vars as a JSON string ensures Ansible parses the values as actual booleans
+        extra_vars = {
+            "reset_db": bool(options.get('reset_db'))
+        }
+        return ["-e", json.dumps(extra_vars)]
 ```
 
 Then append your new class to the `PLAYBOOKS` list inside the `AnsibleInteractive` class in `main.py`:
