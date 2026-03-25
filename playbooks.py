@@ -13,6 +13,19 @@ class Playbook:
 
 class BackendPlaybook(Playbook):
     def get_options(self) -> dict:
+        import sys
+        import os
+        
+        # Support non-interactive mode via environment variables
+        if not sys.stdin.isatty():
+            run_migrations = os.getenv("RUN_MIGRATIONS", "false").lower() in ['true', 'yes', '1', 'y']
+            collectstatic = os.getenv("COLLECTSTATIC", "false").lower() in ['true', 'yes', '1', 'y']
+            print(f"Non-interactive mode: run_migrations={run_migrations}, collectstatic={collectstatic}")
+            return {
+                "run_migrations": run_migrations,
+                "collectstatic": collectstatic,
+            }
+        
         print("\nBackend specific options:")
         run_migrations = input("  Should I run migrations? (y/N): ").strip().lower() in ['y', 'yes']
         collectstatic = input("  Should I collect static files? (y/N): ").strip().lower() in ['y', 'yes']

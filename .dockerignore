@@ -1,0 +1,16 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv
+.python-version
+*.egg-info
+.pytest_cache
+.mypy_cache
+README.md
+playbooks/.ansible_password
+playbooks/star_deploy
+playbooks/star_deploy.pub

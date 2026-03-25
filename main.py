@@ -10,6 +10,7 @@ from playbooks import (
     FrontendStagingPlaybook,
 )
 
+
 class AnsibleInteractive:
     PLAYBOOKS = [
         BackendProdPlaybook(),
@@ -17,39 +18,28 @@ class AnsibleInteractive:
         FrontendProdPlaybook(),
         FrontendStagingPlaybook(),
     ]
-    _VAULT_PASSWORD_FILE: str = ".ansible_password"
-    _HOSTS_FILE: str = "hosts.ini"
+    _PLAYBOOKS_DIR: str = "playbooks"
+    _CONFIG_DIR: str = "config"
     _OPTIONS: dict = {}
-    _SELECTED_PLAYBOOK: Playbook 
+    _SELECTED_PLAYBOOK: Playbook
+    _DOCKER_IMAGE: str = "mahmoudhesham1350/ansible-playbook:latest"
 
     def __init__(self):
-        dir_path = input("Enter path to the playbooks directory (default: .): ").strip()
-        if dir_path:
-            if not os.path.exists(dir_path):
-                raise ValueError(f"The directory '{dir_path}' was not found.")
-            os.chdir(dir_path)
+        default_playbooks_dir = os.getenv("PLAYBOOKS_DIR", self._PLAYBOOKS_DIR)
+        dir_path = input(f"Enter path to the playbooks directory (default: {default_playbooks_dir}): ").strip()
+        if not dir_path:
+            dir_path = default_playbooks_dir
+        if not os.path.exists(dir_path):
+            raise ValueError(f"The directory '{dir_path}' was not found.")
+        self._PLAYBOOKS_DIR = os.path.abspath(dir_path)
 
-    def _set_vault_password_file(self):
-        if not os.path.exists(self._VAULT_PASSWORD_FILE):
-            print(f"\nWarning: The default vault password file '{self._VAULT_PASSWORD_FILE}' was not found.")
-            vault_password_file = input("Enter path to the vault password file: ").strip()
-            if not os.path.exists(vault_password_file):
-                raise ValueError(f"The vault password file '{vault_password_file}' was not found either.")
-        else:
-            print(f"Using default vault password file '{self._VAULT_PASSWORD_FILE}'.")
-        self._VAULT_PASSWORD_FILE = vault_password_file
-
-
-    def _set_hosts_file(self):
-        if not os.path.exists(self._HOSTS_FILE):
-            print(f"\nWarning: The default hosts file '{self._HOSTS_FILE}' was not found.")
-            hosts_file = input("Enter path to the hosts file: ").strip()
-            if not os.path.exists(hosts_file):
-                raise ValueError(f"The hosts file '{hosts_file}' was not found either.")
-            self._HOSTS_FILE = hosts_file
-        else:
-            print(f"Using default hosts file '{self._HOSTS_FILE}'.")
-
+        default_config = os.getenv("ANSIBLE_CONFIG_DIR", os.path.join(dir_path, self._CONFIG_DIR))
+        config_dir = input(f"Enter path to config directory with ansible.cfg and SSH keys (default: {default_config}): ").strip()
+        if not config_dir:
+            config_dir = default_config
+        if not os.path.exists(config_dir):
+            raise ValueError(f"The config directory '{config_dir}' was not found.")
+        self._CONFIG_DIR = os.path.abspath(config_dir)
 
     def _set_playbook(self):
         selection = input(f"\nSelect a playbook to run (1-{len(self.PLAYBOOKS)}): ").strip()
@@ -57,12 +47,14 @@ class AnsibleInteractive:
             idx = int(selection) - 1
             if 0 <= idx < len(self.PLAYBOOKS):
                 self._SELECTED_PLAYBOOK = self.PLAYBOOKS[idx]
-        except Exception:
+            else:
+                raise ValueError("Selection out of range.")
+        except (ValueError, IndexError):
             raise ValueError("Invalid selection. Please choose a valid playbook number.")
-    
+
     def _set_options(self):
         if not self._SELECTED_PLAYBOOK:
-            raise ValueError("No playbook selected")
+            raise ValueError("No playbook selected.")
         self._OPTIONS = self._SELECTED_PLAYBOOK.get_options()
 
     def menu(self) -> None:
@@ -75,41 +67,37 @@ class AnsibleInteractive:
 
         self._set_playbook()
         self._set_options()
-        self._set_hosts_file()
-        if self._SELECTED_PLAYBOOK.requires_vault_password:
-            self._set_vault_password_file()
 
-
-    def run_playbook(self):
+    def get_cmd(self) -> list[str]:
         playbook: Playbook = self._SELECTED_PLAYBOOK
-        
-        # Determine how to run ansible-playbook
-        # First check if ansible-playbook is in PATH (e.g., if running inside uv run or venv)
-        cmd_prefix = []
-        if shutil.which("ansible-playbook"):
-            cmd_prefix = ["ansible-playbook"]
-        elif shutil.which("uv"):
-            print("Ansible not found in PATH, but 'uv' is present. Will run using 'uv run ansible-playbook'.")
-            cmd_prefix = ["uv", "run", "ansible-playbook"]
-        else:
-            print("Error: 'ansible-playbook' command not found, and 'uv' is not installed.", file=sys.stderr)
-            print("Please install ansible, or run this script via 'uv run main.py'.", file=sys.stderr)
-            sys.exit(1)
-
-        cmd = cmd_prefix + ["-i", self._HOSTS_FILE, playbook.file]
-
-        if self._VAULT_PASSWORD_FILE:
-            cmd.extend(["--vault-password-file", self._VAULT_PASSWORD_FILE])
+        cmd =  [
+            "docker", "run", "--rm", "-it",
+            "-v", f"{self._PLAYBOOKS_DIR}:/ansible",
+            "-v", f"{self._CONFIG_DIR}:/ansible/config:ro",
+            "-w", "/ansible",
+            "-e", "ANSIBLE_CONFIG=/ansible/config/ansible.cfg",
+            self._DOCKER_IMAGE,
+            playbook.file,
+        ]
+        if playbook.requires_vault_password:
+            cmd.append("--ask-vault-pass")
 
         cmd.extend(playbook.get_extra_vars(self._OPTIONS))
+        return cmd
+
+    def run_playbook(self):
+        if not shutil.which("docker"):
+            print("Error: 'docker' command not found. Please install Docker Desktop.", file=sys.stderr)
+            sys.exit(1)
+
+        cmd = self.get_cmd()
 
         print("\n" + "=" * 50)
-        print(f"Running '{playbook.name}'...")
+        print(f"Running '{self._SELECTED_PLAYBOOK.name}'...")
         print(f"Command: {' '.join(cmd)}")
         print("=" * 50 + "\n")
 
         try:
-            # We don't use check=True because we want to handle the error our way without a python traceback
             result = subprocess.run(cmd)
             if result.returncode == 0:
                 print("\nDeployment completed successfully!")
@@ -117,11 +105,12 @@ class AnsibleInteractive:
                 print(f"\nAnsible playbook failed with exit code {result.returncode}", file=sys.stderr)
                 sys.exit(result.returncode)
         except FileNotFoundError:
-            print("Error: Could not execute ansible-playbook.", file=sys.stderr)
+            print("Error: Could not execute docker.", file=sys.stderr)
             sys.exit(1)
         except KeyboardInterrupt:
             print("\nPlaybook execution cancelled by user.")
             sys.exit(1)
+
 
 def main():
     try:
@@ -134,6 +123,7 @@ def main():
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
