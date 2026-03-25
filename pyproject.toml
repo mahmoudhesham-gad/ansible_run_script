@@ -1,9 +1,0 @@
-[project]
-name = "ansible_run_script"
-version = "0.1.0"
-description = "Ansible run script"
-readme = "README.md"
-requires-python = ">=3.14"
-dependencies = [
-    "ansible>=13.4.0",
-]
